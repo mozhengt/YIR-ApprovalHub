@@ -2,8 +2,12 @@ package com.approval.module.approval.service;
 
 import com.approval.module.approval.dto.CreateLeaveDto;
 import com.approval.module.approval.dto.CreateReimburseDto;
+import com.approval.module.approval.vo.ApplicationHistoryVo;
+import com.approval.module.approval.vo.ApplicationSummaryVo;
 import com.approval.module.approval.vo.ApplicationVo;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+
+import java.time.LocalDateTime;
 
 /**
  * 申请服务接口
@@ -25,6 +29,18 @@ public interface IApplicationService {
      */
     Page<ApplicationVo> getMyApplications(Long userId, Integer pageNum, Integer pageSize,
             String appType, Integer status);
+
+        /**
+         * 查询审批历史
+         */
+        Page<ApplicationHistoryVo> getMyHistoryApplications(Long userId, Integer pageNum, Integer pageSize,
+            LocalDateTime startTime, LocalDateTime endTime, String approverName,
+            Integer leaveType, Integer expenseType, Integer status);
+
+        /**
+         * 获取申请统计
+         */
+        ApplicationSummaryVo getMySummary(Long userId);
 
     /**
      * 查询申请详情

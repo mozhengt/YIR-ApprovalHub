@@ -10,8 +10,12 @@ import com.approval.module.approval.mapper.ApplicationMapper;
 import com.approval.module.approval.mapper.LeaveApplicationMapper;
 import com.approval.module.approval.mapper.ReimburseApplicationMapper;
 import com.approval.module.approval.service.IApplicationService;
+import com.approval.module.approval.vo.ApplicationHistoryVo;
+import com.approval.module.approval.vo.ApplicationSummaryVo;
 import com.approval.module.approval.vo.ApplicationVo;
 import com.approval.module.system.entity.User;
+import com.approval.module.system.mapper.DeptMapper;
+import com.approval.module.system.mapper.PostMapper;
 import com.approval.module.system.mapper.UserMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -19,10 +23,18 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * 申请服务实现
@@ -37,6 +49,10 @@ public class ApplicationServiceImpl implements IApplicationService {
     private final UserMapper userMapper;
     private final com.approval.module.approval.mapper.TaskMapper taskMapper;
     private final com.approval.module.approval.mapper.HistoryMapper historyMapper;
+    private final DeptMapper deptMapper;
+    private final PostMapper postMapper;
+
+    private static final List<Integer> HISTORY_STATUSES = Arrays.asList(3, 4, 5);
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -155,9 +171,108 @@ public class ApplicationServiceImpl implements IApplicationService {
             vo.setApplicantName(user != null ? user.getRealName() : "");
             vo.setDeptName("技术部"); // 简化处理
             return vo;
-        }).collect(java.util.stream.Collectors.toList()));
+        }).collect(Collectors.toList()));
 
         return voPage;
+    }
+
+    @Override
+    public Page<ApplicationHistoryVo> getMyHistoryApplications(Long userId, Integer pageNum, Integer pageSize,
+            LocalDateTime startTime, LocalDateTime endTime, String approverName,
+            Integer leaveType, Integer expenseType, Integer status) {
+        long current = (pageNum == null || pageNum <= 0) ? 1L : pageNum;
+        long size = (pageSize == null || pageSize <= 0) ? 10L : pageSize;
+
+        LambdaQueryWrapper<Application> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Application::getApplicantId, userId)
+                .ge(startTime != null, Application::getSubmitTime, startTime)
+                .le(endTime != null, Application::getSubmitTime, endTime)
+                .orderByDesc(Application::getSubmitTime);
+
+        if (status != null) {
+            wrapper.eq(Application::getStatus, status);
+        } else {
+            wrapper.in(Application::getStatus, HISTORY_STATUSES);
+        }
+
+        List<Application> applications = applicationMapper.selectList(wrapper);
+        if (applications.isEmpty()) {
+            return new Page<>(current, size, 0);
+        }
+
+        User applicant = userMapper.selectById(userId);
+        String deptName = "";
+        if (applicant != null && applicant.getDeptId() != null) {
+            com.approval.module.system.entity.Dept dept = deptMapper.selectById(applicant.getDeptId());
+            deptName = dept != null ? dept.getDeptName() : "";
+        }
+
+        List<ApplicationHistoryVo> historyVos = new ArrayList<>();
+        for (Application application : applications) {
+            LeaveApplication leaveDetail = null;
+            ReimburseApplication reimburseDetail = null;
+
+            if ("leave".equals(application.getAppType())) {
+                leaveDetail = leaveApplicationMapper.selectOne(
+                        new LambdaQueryWrapper<LeaveApplication>().eq(LeaveApplication::getAppId, application.getAppId()));
+                if (leaveType != null && (leaveDetail == null || !leaveType.equals(leaveDetail.getLeaveType()))) {
+                    continue;
+                }
+            }
+
+            if ("reimburse".equals(application.getAppType())) {
+                reimburseDetail = reimburseApplicationMapper.selectOne(
+                        new LambdaQueryWrapper<ReimburseApplication>().eq(ReimburseApplication::getAppId, application.getAppId()));
+                if (expenseType != null && (reimburseDetail == null || !expenseType.equals(reimburseDetail.getExpenseType()))) {
+                    continue;
+                }
+            }
+
+            com.approval.module.approval.entity.History latestHistory = historyMapper.selectOne(
+                    new LambdaQueryWrapper<com.approval.module.approval.entity.History>()
+                            .eq(com.approval.module.approval.entity.History::getAppId, application.getAppId())
+                            .orderByDesc(com.approval.module.approval.entity.History::getApproveTime)
+                            .last("limit 1"));
+
+            if (approverName != null && !approverName.isEmpty()) {
+                if (latestHistory == null || latestHistory.getApproverName() == null
+                        || !latestHistory.getApproverName().contains(approverName)) {
+                    continue;
+                }
+            }
+
+            ApplicationHistoryVo vo = ApplicationHistoryVo.builder()
+                    .appId(application.getAppId())
+                    .appNo(application.getAppNo())
+                    .appType(application.getAppType())
+                    .title(application.getTitle())
+                    .status(application.getStatus())
+                    .applicantName(applicant != null ? applicant.getRealName() : "")
+                    .deptName(deptName)
+                    .currentNode(application.getCurrentNode())
+                    .approverName(latestHistory != null ? latestHistory.getApproverName() : null)
+                    .action(latestHistory != null ? latestHistory.getAction() : null)
+                    .comment(latestHistory != null ? latestHistory.getComment() : null)
+                    .leaveType(leaveDetail != null ? leaveDetail.getLeaveType() : null)
+                    .leaveDays(leaveDetail != null ? leaveDetail.getDays() : null)
+                    .expenseType(reimburseDetail != null ? reimburseDetail.getExpenseType() : null)
+                    .expenseAmount(reimburseDetail != null ? reimburseDetail.getAmount() : null)
+                    .submitTime(application.getSubmitTime())
+                    .approveTime(latestHistory != null ? latestHistory.getApproveTime() : null)
+                    .finishTime(application.getFinishTime())
+                    .build();
+            historyVos.add(vo);
+        }
+
+        int fromIndex = (int) Math.max((current - 1) * size, 0);
+        int toIndex = Math.min((int) (fromIndex + size), historyVos.size());
+        List<ApplicationHistoryVo> records = fromIndex >= historyVos.size()
+                ? Collections.emptyList()
+                : historyVos.subList(fromIndex, toIndex);
+
+        Page<ApplicationHistoryVo> page = new Page<>(current, size, historyVos.size());
+        page.setRecords(records);
+        return page;
     }
 
     @Override
@@ -189,6 +304,87 @@ public class ApplicationServiceImpl implements IApplicationService {
 
         return detail;
     }
+
+        @Override
+        public ApplicationSummaryVo getMySummary(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        List<Application> applications = applicationMapper.selectList(
+            new LambdaQueryWrapper<Application>().eq(Application::getApplicantId, userId));
+
+        long totalCount = applications.size();
+        long pendingCount = applications.stream().filter(app -> Integer.valueOf(1).equals(app.getStatus())).count();
+        long approvedCount = applications.stream().filter(app -> Integer.valueOf(3).equals(app.getStatus())).count();
+        long rejectedCount = applications.stream().filter(app -> Integer.valueOf(4).equals(app.getStatus())).count();
+        long withdrawnCount = applications.stream().filter(app -> Integer.valueOf(5).equals(app.getStatus())).count();
+
+        List<Long> leaveAppIds = applications.stream()
+            .filter(app -> "leave".equals(app.getAppType()))
+            .map(Application::getAppId)
+            .collect(Collectors.toList());
+        List<Long> reimburseAppIds = applications.stream()
+            .filter(app -> "reimburse".equals(app.getAppType()))
+            .map(Application::getAppId)
+            .collect(Collectors.toList());
+
+        long leaveCount = leaveAppIds.size();
+        long reimburseCount = reimburseAppIds.size();
+
+        BigDecimal totalLeaveDays = leaveAppIds.isEmpty() ? BigDecimal.ZERO :
+            leaveApplicationMapper.selectList(new LambdaQueryWrapper<LeaveApplication>()
+                .in(LeaveApplication::getAppId, leaveAppIds))
+                .stream()
+                .map(LeaveApplication::getDays)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal totalReimburseAmount = reimburseAppIds.isEmpty() ? BigDecimal.ZERO :
+            reimburseApplicationMapper.selectList(new LambdaQueryWrapper<ReimburseApplication>()
+                .in(ReimburseApplication::getAppId, reimburseAppIds))
+                .stream()
+                .map(ReimburseApplication::getAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal approvalRate = totalCount == 0 ? BigDecimal.ZERO
+            : BigDecimal.valueOf(approvedCount)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(totalCount), 2, RoundingMode.HALF_UP);
+
+        LocalDateTime lastSubmitTime = applications.stream()
+            .map(Application::getSubmitTime)
+            .filter(Objects::nonNull)
+            .max(LocalDateTime::compareTo)
+            .orElse(null);
+
+        com.approval.module.system.entity.Dept dept = user.getDeptId() != null
+            ? deptMapper.selectById(user.getDeptId())
+            : null;
+        com.approval.module.system.entity.Post post = user.getPostId() != null
+            ? postMapper.selectById(user.getPostId())
+            : null;
+
+        return ApplicationSummaryVo.builder()
+            .userId(userId)
+            .realName(user.getRealName())
+            .deptName(dept != null ? dept.getDeptName() : "")
+            .postName(post != null ? post.getPostName() : "")
+            .totalCount(totalCount)
+            .pendingCount(pendingCount)
+            .approvedCount(approvedCount)
+            .rejectedCount(rejectedCount)
+            .withdrawnCount(withdrawnCount)
+            .leaveCount(leaveCount)
+            .reimburseCount(reimburseCount)
+            .totalLeaveDays(totalLeaveDays)
+            .totalReimburseAmount(totalReimburseAmount)
+            .approvalRate(approvalRate)
+            .lastSubmitTime(lastSubmitTime)
+            .build();
+        }
 
     @Override
     @Transactional(rollbackFor = Exception.class)

@@ -5,6 +5,8 @@ import com.approval.common.utils.JwtUtils;
 import com.approval.module.approval.dto.CreateLeaveDto;
 import com.approval.module.approval.dto.CreateReimburseDto;
 import com.approval.module.approval.service.IApplicationService;
+import com.approval.module.approval.vo.ApplicationHistoryVo;
+import com.approval.module.approval.vo.ApplicationSummaryVo;
 import com.approval.module.approval.vo.ApplicationVo;
 import com.approval.module.system.entity.User;
 import com.approval.module.system.mapper.UserMapper;
@@ -14,7 +16,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
 
 /**
  * 申请管理控制器
@@ -60,6 +65,32 @@ public class ApplicationController {
         Long userId = getUserIdFromToken(token);
         Page<ApplicationVo> page = applicationService.getMyApplications(userId, pageNum, pageSize, appType, status);
         return Result.success(page);
+    }
+
+    @Operation(summary = "查询审批历史")
+    @GetMapping("/history")
+    public Result<Page<ApplicationHistoryVo>> getMyHistoryApplications(
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "10") Integer pageSize,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime,
+            @RequestParam(required = false) String approverName,
+            @RequestParam(required = false) Integer leaveType,
+            @RequestParam(required = false) Integer expenseType,
+            @RequestParam(required = false) Integer status,
+            @RequestHeader("Authorization") String token) {
+        Long userId = getUserIdFromToken(token);
+        Page<ApplicationHistoryVo> page = applicationService.getMyHistoryApplications(userId, pageNum, pageSize,
+                startTime, endTime, approverName, leaveType, expenseType, status);
+        return Result.success(page);
+    }
+
+    @Operation(summary = "获取申请统计")
+    @GetMapping("/summary")
+    public Result<ApplicationSummaryVo> getMySummary(@RequestHeader("Authorization") String token) {
+        Long userId = getUserIdFromToken(token);
+        ApplicationSummaryVo summary = applicationService.getMySummary(userId);
+        return Result.success(summary);
     }
 
     @Operation(summary = "查询申请详情")

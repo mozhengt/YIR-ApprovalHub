@@ -5,6 +5,7 @@ import type {
     LoginResponse,
     User,
     Application,
+    ApplicationHistory,
     CreateLeaveRequest,
     CreateReimburseRequest,
     Task,
@@ -48,6 +49,20 @@ export const applicationApi = {
         status?: number
     }) =>
         request.get<any, { records: Application[]; total: number }>('/application/my', { params }),
+
+    // 查询审批历史
+    getHistoryApplications: (params: {
+        pageNum?: number
+        pageSize?: number
+        appType?: string
+        status?: number
+        approverName?: string
+        startTime?: string
+        endTime?: string
+        leaveType?: number
+        expenseType?: number
+    }) =>
+        request.get<any, { records: ApplicationHistory[]; total: number }>('/application/history', { params }),
 
     // 查询申请详情
     getDetail: (appId: number) =>

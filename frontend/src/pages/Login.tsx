@@ -79,9 +79,11 @@ export default function Login() {
                             立即注册
                         </Link>
                     </div>
-                    <p className="text-xs text-muted-foreground border-t pt-4 w-full">
-                        测试账号：admin / 123456
-                    </p>
+                    <div className="flex flex-col gap-1 text-xs text-muted-foreground border-t pt-4 w-full">
+                        <span>管理账号：admin / 123456</span>
+                        <span>审批账号：zyb / 123456</span>
+                        <span>员工账号：wangyi / 123456</span>
+                    </div>
                 </CardFooter>
             </Card>
         </div>

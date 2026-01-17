@@ -1,6 +1,7 @@
 import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import MyApplications from './MyApplications'
+import ApprovalHistory from './ApprovalHistory'
 import CreateLeave from './CreateLeave'
 import CreateReimburse from './CreateReimburse'
 import { Button } from '@/components/ui/button'
@@ -23,6 +24,7 @@ export default function UserDashboard() {
 
     const navItems = [
         { href: '/dashboard/applications', label: '我的申请', icon: FileText },
+        { href: '/dashboard/approval-history', label: '审批历史', icon: FileText },
     ]
 
     return (
@@ -75,6 +77,7 @@ export default function UserDashboard() {
                     <div className="max-w-5xl mx-auto">
                         <Routes>
                             <Route path="applications" element={<MyApplications />} />
+                            <Route path="approval-history" element={<ApprovalHistory />} />
                             <Route path="create/leave" element={<CreateLeave />} />
                             <Route path="create/reimburse" element={<CreateReimburse />} />
                             <Route

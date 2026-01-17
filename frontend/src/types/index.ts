@@ -38,6 +38,27 @@ export interface Application {
     finishTime?: string
 }
 
+export interface ApplicationHistory {
+    appId: number
+    appNo: string
+    appType: string
+    title: string
+    status: number
+    applicantName: string
+    deptName: string
+    currentNode?: string
+    approverName?: string
+    action?: number
+    comment?: string
+    leaveType?: number
+    leaveDays?: number
+    expenseType?: number
+    expenseAmount?: number
+    submitTime: string
+    approveTime?: string
+    finishTime?: string
+}
+
 export interface CreateLeaveRequest {
     leaveType: number
     startTime: string

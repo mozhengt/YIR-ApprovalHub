@@ -1,17 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { applicationApi } from '@/api'
 import type { Application } from '@/types'
-import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
 import {
     Select,
     SelectContent,
@@ -19,9 +13,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-// 这个界面是干什么的？ 显示用户自己的申请列表，并允许用户筛选和撤回申请
 
 const statusMap: Record<number, { text: string; variant: "default" | "secondary" | "destructive" | "outline" | "success" | "warning" }> = {
     0: { text: '草稿', variant: 'secondary' },
@@ -37,13 +29,13 @@ const typeMap: Record<string, string> = {
     reimburse: '报销',
 }
 
-export default function MyApplications() {
+export default function ApprovalHistory() {
     const navigate = useNavigate()
     const [applications, setApplications] = useState<Application[]>([])
     const [loading, setLoading] = useState(false)
     const [filter, setFilter] = useState({ appType: '', status: '' })
 
-    const allowedStatuses = [0, 1, 2]
+    const allowedStatuses = [3, 4, 5]
 
     const fetchApplications = async () => {
         setLoading(true)
@@ -54,8 +46,8 @@ export default function MyApplications() {
                 appType: filter.appType || undefined,
                 status: filter.status ? Number(filter.status) : undefined,
             })
-            const records = Array.isArray(res.records) ? res.records : []// 防止后端返回非数组
-            setApplications(records.filter((item) => allowedStatuses.includes(item.status)))// 只显示未完成的申请
+            const records = Array.isArray(res.records) ? res.records : []
+            setApplications(records.filter((item) => allowedStatuses.includes(item.status)))
         } catch (error) {
             console.error(error)
         } finally {
@@ -85,10 +77,7 @@ export default function MyApplications() {
                 <h2 className="text-3xl font-bold tracking-tight">我的申请</h2>
                 <div className="flex gap-4">
                     <Button onClick={() => navigate('/dashboard/create/leave')}>
-                        + 请假申请
-                    </Button>
-                    <Button  onClick={() => navigate('/dashboard/create/reimburse')}>
-                        + 报销申请
+                        + 刷新
                     </Button>
                 </div>
             </div>
@@ -119,11 +108,43 @@ export default function MyApplications() {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">全部状态</SelectItem>
-                                <SelectItem value="1">待审批</SelectItem>
-                                <SelectItem value="2">审批中</SelectItem>
-                                <SelectItem value="0">草稿</SelectItem>
+                                <SelectItem value="3">已通过</SelectItem>
+                                <SelectItem value="4">已拒绝</SelectItem>
+                                <SelectItem value="5">已撤回</SelectItem>
                             </SelectContent>
                         </Select>
+
+                         <Select
+                            value={filter.status}
+                            onValueChange={(val) => setFilter({ ...filter, status: val === "all" ? "" : val })}
+                        >
+                            <SelectTrigger className="w-[180px]">
+                                <SelectValue placeholder="审批人" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">全部审批人</SelectItem>
+                                <SelectItem value="3">已通过</SelectItem>
+                                <SelectItem value="4">已拒绝</SelectItem>
+                                <SelectItem value="5">已撤回</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        
+                        <Select
+                            value={filter.status}
+                            onValueChange={(val) => setFilter({ ...filter, status: val === "all" ? "" : val })}
+                        >
+                            <SelectTrigger className="w-[180px]">
+                                <SelectValue placeholder="时间" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">全部时间</SelectItem>
+                                <SelectItem value="3">已通过</SelectItem>
+                                <SelectItem value="4">已拒绝</SelectItem>
+                                <SelectItem value="5">已撤回</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -138,6 +159,7 @@ export default function MyApplications() {
                                     <TableHead>申请单号</TableHead>
                                     <TableHead>类型</TableHead>
                                     <TableHead>标题</TableHead>
+                                    <TableHead>审批人</TableHead>
                                     <TableHead>状态</TableHead>
                                     <TableHead>提交时间</TableHead>
                                     <TableHead>操作</TableHead>
